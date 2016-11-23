@@ -4,10 +4,13 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+    <title>A short intro to QuickCheck for C++ programmers</title>
+
+    <meta name="description" content="A short intro to QuickCheck for C++ programmers">
+    <meta name="author" content="Kai Michaelis">
 
 		<link rel="stylesheet" href="css/reveal.css">
-		<link rel="stylesheet" href="css/theme/black.css">
+    <link rel="stylesheet" href="css/theme/solarized.css" id="theme">
 
 		<!-- Theme used for syntax highlighting of code -->
 		<link rel="stylesheet" href="lib/css/zenburn.css">
@@ -24,8 +27,216 @@
 	<body>
 		<div class="reveal">
 			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
+    		<section>
+          <h1>QuickCheck</h1>
+          <p>
+            <small>Created by <a href="https://github.com/flanfly">Kai</a> / <a href="http://twitter.com/_cibo_">@_cibo_</a></small>
+          </p>
+        </section>
+
+				<section>
+					<p>QuickCheck tests functions using random inputs.</p>
+				</section>
+
+				<section>
+					<h2>Quick(Check) Example</h2>
+<pre><code class="cpp" data-trim>
+std::vector&lt;int&gt; reverse(std::vector&lt;int&gt; const&amp; in) {
+  std::vector&lt;int&gt; vec(in);
+  for(size_t i = 0; i &lt; vec.size() / 2; ++i) {
+    std::swap(vec[i],vec[(i + vec.size() - 1) % vec.size()]);
+  }
+  return vec;
+}</code></pre>
+				</section>
+
+				<section>
+<pre><code class="cpp" data-trim>
+int main() {
+  rc::check("double reversal yields the original value",
+            [](const std::vector&lt;int&gt; &amp;l0) {
+              auto l1 = reverse(reverse(l0));
+              RC_ASSERT(l0 == l1);
+            });
+  return 0;
+}</code></pre>
+		</section>
+
+		<section>
+<pre><code class="cpp" data-trim>
+quickcheck.cc:18:
+RC_ASSERT(l0 == l1)
+
+Expands to:
+[0, 0, 0, 1] == [1, 0, 0, 0]</code></pre>
+	</section>
+
+	<section>
+			<h2>Basic Operation</h2>
+	</section>
+
+	<section>
+		<h3>Provide a predicate...</h3>
+	</section>
+
+	<section>
+		<h3>...QuickCheck calls it with random inputs...</h3>
+	</section>
+
+	<section>
+		<h3>...until it becomes false.</h3>
+	</section>
+
+		<section>
+<pre><code class="cpp" data-trim>
+Using configuration: seed=3756112744503075154
+
+- double reversal yields the original value
+Falsifiable after 5 tests and 3 shrinks
+
+std::tuple&lt;std::vector&lt;int&gt;&gt;:
+([0, 0, 0, 1])
+
+quickcheck.cc:18:
+RC_ASSERT(l0 == l1)
+
+Expands to:
+[0, 0, 0, 1] == [1, 0, 0, 0]
+Some of your RapidCheck properties had failures.
+To reproduce these, run with:
+RC_PARAMS="reproduce=BkCZvVnYsVGIyVmd..."</code></pre>
+	</section>
+
+<!--
+				History
+-->
+
+	<section>
+			<h2>How To Test</h2>
+	</section>
+
+	<section>
+		<p>Write on obviously correct implementation and use it to verify and efficient, but complicated one.</p>
+	</section>
+
+	<section>
+		<h3>Cross checking</h3>
+			<pre><code class="cpp" data-trim>
+rc::check("BigUInt Multiplication",
+          [](BigUInt const&amp; a, BigUInt const&amp; b) {
+            BigUInt c(0), i = a;
+
+            while(i != BigUInt(0)) {
+              c += b;
+              i -= BigUInt(1);
+            }
+
+            RC_ASSERT(c == a*b);
+});</code></pre>
+	</section>
+
+	<section>
+		<h3>Easy to compute inverses</h3>
+			<pre><code class="cpp" data-trim>
+rc::check("Prime Factorization",
+          [](BigUInt const&amp; comp) {
+            vector&lt;BigUInt&gt; factors = factorize(comp), b(1);
+
+            for(auto const&amp; factor: factors) {
+              b *= factor;
+            }
+
+            RC_ASSERT(comp == b);
+});</code></pre>
+	</section>
+
+	<section>
+		<h3>Known invariants</h3>
+			<pre><code class="cpp" data-trim>
+rc::check("Hamilton Path",
+          [](Graph const&amp; g) {
+            vector&lt;Node&gt; path = hamilton_path(graph);
+
+            RC_ASSERT(g.num_nodes() == path.size());
+});</code></pre>
+	</section>
+
+	<section>
+		<h3>Custom types: we implement random generation ourself</h3>
+		<pre><code class="cpp" data-trim>
+enum class Department {
+	Engineering,
+	HumanResources,
+	Sales,
+};
+
+struct Employee {
+	std::string name;
+	Department department;
+	std::chrono::system_clock::time_point dob;
+};</code></pre>
+	</section>
+
+
+	<section>
+		<pre><code class="cpp" data-trim>
+template&lt;&gt;
+struct Arbitrary&lt;Employee&gt; {
+  using tp = std::chrono::system_clock::time_point;
+  using years = typename std::chrono::duration&lt;
+                  long long,std::ratio&lt;31557600&gt;&gt;;
+
+  static Gen&lt;Employee&gt; arbitrary() {
+    return gen::build&lt;Employee&gt;(
+        gen::set(&amp;Employee::name),
+        gen::set(&amp;Employee::department),
+        gen::set(&amp;Employee::dob,
+          gen::map(gen::inRange(18,80),[](int i) {
+            return tp(years(-i));
+          })));
+    }
+};</code></pre>
+  </section>
+
+
+	<section>
+			<h2>C++ Libraries</h2>
+	</section>
+
+  <!--
+    C++11 needed, modern
+  -->
+	<section>
+    <img src="rapidcheck.png">
+	</section>
+
+  <!--
+    QuickCheck++ oldest 2009, GPL
+    CppQuickCheck: github
+  -->
+	<section>
+			<h3>Other Options</h3>
+      <ul>
+        <li>
+          <b>QuickCheck++</b>: Rather old (2009), GPL, SConstruct, no Github or ML<br>
+          <code>http://software.legiasoft.com/quickcheck/</code>
+        </li>
+        <br>
+        <li>
+          <b>CppQuickCheck</b>: BSD, Object-oriented, Github<br>
+          <code>https://github.com/grogers0/CppQuickCheck</code>
+        </li>
+      </ul>
+	</section>
+
+
+<!--
+				Introspection needed
+
+				C++ libraries
+
+				Rust example
+-->
 			</div>
 		</div>
 
