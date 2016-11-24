@@ -116,7 +116,7 @@ RC_PARAMS="reproduce=BkCZvVnYsVGIyVmd..."</code></pre>
 	</section>
 
 	<section>
-		<p>Write on obviously correct implementation and use it to verify and efficient, but complicated one.</p>
+		<p>Write an obviously correct implementation and use it to verify an efficient, but complex one.</p>
 	</section>
 
 	<section>
@@ -162,7 +162,7 @@ rc::check("Hamilton Path",
 	</section>
 
 	<section>
-		<h3>Custom types: we implement random generation ourself</h3>
+		<h3>Custom types: we implement random generation our self</h3>
 		<pre><code class="cpp" data-trim>
 enum class Department {
 	Engineering,
@@ -229,14 +229,97 @@ struct Arbitrary&lt;Employee&gt; {
       </ul>
 	</section>
 
+	<section>
+			<h2>A Real-Life Example: AMD64 Emulator</h2>
+	</section>
 
-<!--
-				Introspection needed
+  <section>
+    <h3>What does 'add EAX, EBX' do?</h3>
+      <ul>
+        <li>Writes $EAX + EBX \bmod 2^{32}$ into <code>EAX</code>...</li>
+        <li>...<b>and</b> writes <code>CF</code>...</li>
+        <li>...<b>and</b> writes <code>ZF</code>, <code>OF</code>, <code>PF</code>, <code>SF</code>, <code>AF</code>...</li>
+        <li>...<b>and</b> sets the upper 32 bits of <code>RAX</code> to zero.</li>
+      </ul>
+	</section>
 
-				C++ libraries
+  <section>
+    <h3>Cross check emulator &amp; CPU with QuickCheck</h3>
+		<pre><code class="cpp" data-trim>
+rax: 0x0000000000000000	rbx: 0x0000000000000000	rcx: 0x0000000000000000
+rdx: 0x0000000000000000 rsi: 0x0000000000000000	rdi: 0x0000000000000000
+r8 : 0x0000000000000000	r9 : 0x0000000000000000 r10: 0x0000000000000000
+r11: 0x0000000000000000	r12: 0x0000000000000000	r13: 0x0000000000000000
+r14: 0x0000000000000000	r15: 0x0000000000000000
+rip: 0x0000000000400001	rsp: 0x00007ffcd5c8ced0	rbp: 0x0000000000000000
+flags: 0x0000000000000202 [cf:0, zf:0, of:0, sf:0, pf:0, af:0, df:0]
+> add eax, 100
+rax: 0x0000000000000064	rbx: 0x0000000000000000	rcx: 0x0000000000000000
+rdx: 0x0000000000000000 rsi: 0x0000000000000000	rdi: 0x0000000000000000
+r8 : 0x0000000000000000	r9 : 0x0000000000000000 r10: 0x0000000000000000
+r11: 0x0000000000000000	r12: 0x0000000000000000	r13: 0x0000000000000000
+r14: 0x0000000000000000	r15: 0x0000000000000000
+rip: 0x0000000000400004	rsp: 0x00007ffcd5c8ced0	rbp: 0x0000000000000000
+flags: 0x0000000000000202 [cf:0, zf:0, of:0, sf:0, pf:0, af:0, df:0]</code></pre>
+	</section>
 
-				Rust example
--->
+  <section>
+    <h3>First, sample two registers &amp; their values</h3>
+		<pre><code class="rust" data-trim>
+let nam = g.choose(&amp;[
+  "EAX","EBX","ECX","EDX","ESI","EDI","EBP",
+  "R8D","R9D","R10D","R11D","R12D","R13D","R14D","R15D"
+]).unwrap().to_string().into();
+let val = g.gen::&lt;u32&gt;();
+</code></pre>
+        </section>
+
+        <section>
+          <h3>Then, assemble and execute the instruction</h3>
+          <pre><code class="rust" data-trim>
+let mut child = Command::new("./rappel")
+child.stdin.write(&amp;format!("mov {}, 0x{:x}\n",nam1,val1).into_bytes());
+child.stdin.write(&amp;format!("mov {}, 0x{:x}\n",nam2,val2).into_bytes());
+chuld.stdin.write(&amp;format!("add {}, {}\n",nam1,nam2).into_bytes());
+child.wait();</code></pre>
+        </section>
+
+        <section>
+          <h3>Finally, read the result back</h3>
+          <pre><code class="rust" data-trim>
+let regs_re = Regex::new(r"(rax|rbx|rcx|rdx|rsi|rdi|r8 |r9 |r10|r11|
+                            r12|r13|r14|r15):
+                            (.......)?(0x................)").unwrap();
+let regs = regs_re.captures_iter(&amp;child.stdout).filter_map(|x| ..);</code></pre>
+        </section>
+
+        <section>
+          <h3>Now, check it against the emulator</h3>
+          <pre><code class="rust" data-trim>
+for (name,val) in regs {
+  let key = Cow::Owned(name.trim().clone().to_uppercase());
+
+  if Some(val) != ctx.get(&amp;key).map(|x| *x as u64) {
+    println!("{}:\n\tHardware = 0x{:x}\n\tSoftware = 0x{:x}",
+             key,val,ctx.get(&amp;key).unwrap_or(&amp;0));
+    return Ok(false);
+  }
+}</code></pre>
+        </section>
+
+        <section>
+          <ul>
+            <li>Found tens of bugs in the emulation in a few days</li>
+            <br>
+            <li>Used it for an interval arithmetic library and found problems with published, peer-reviewed algorithms</li>
+            <br>
+            <li>Bottom Line: <b>QuickCheck is simple to use and find bugs in real-world software</b></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Thanks, Questions?</h2>
+        </section>
 			</div>
 		</div>
 
@@ -247,9 +330,14 @@ struct Arbitrary&lt;Employee&gt; {
 			// More info https://github.com/hakimel/reveal.js#configuration
 			Reveal.initialize({
 				history: true,
+ math: {
+        mathjax: 'https://cdn.mathjax.org/mathjax/latest/MathJax.js',
+        config: 'TeX-AMS_HTML-full'  // See http://docs.mathjax.org/en/latest/config-files.html
+    },
 
 				// More info https://github.com/hakimel/reveal.js#dependencies
 				dependencies: [
+          { src: 'plugin/math/math.js', async: true },
 					{ src: 'plugin/markdown/marked.js' },
 					{ src: 'plugin/markdown/markdown.js' },
 					{ src: 'plugin/notes/notes.js', async: true },
